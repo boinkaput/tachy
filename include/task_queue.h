@@ -14,27 +14,27 @@ static inline struct tachy_task_queue tachy_task_queue_new(void) {
     return (struct tachy_task_queue) {0};
 }
 
-static inline size_t tachy_task_queue_size(struct tachy_task_queue *self) {
-    assert(self != NULL);
+static inline size_t tachy_task_queue_size(struct tachy_task_queue *queue) {
+    assert(queue != NULL);
 
-    return self->tail - self->head;
+    return queue->tail - queue->head;
 }
 
-static inline void tachy_task_queue_push(struct tachy_task_queue *self, struct tachy_task *task) {
-    assert(self != NULL);
-    assert(tachy_task_queue_size(self) < TACHY_TASK_QUEUE_CAPACITY);
+static inline void tachy_task_queue_push(struct tachy_task_queue *queue, struct tachy_task *task) {
+    assert(queue != NULL);
+    assert(tachy_task_queue_size(queue) < TACHY_TASK_QUEUE_CAPACITY);
     assert(task != NULL);
 
-    size_t next_tail = self->tail % TACHY_TASK_QUEUE_CAPACITY;
-    self->tail++;
-    self->tasks[next_tail] = task;
+    size_t next_tail = queue->tail % TACHY_TASK_QUEUE_CAPACITY;
+    queue->tail++;
+    queue->tasks[next_tail] = task;
 }
 
-static inline struct tachy_task *tachy_task_queue_pop(struct tachy_task_queue *self) {
-    assert(self != NULL);
-    assert(tachy_task_queue_size(self) > 0);
+static inline struct tachy_task *tachy_task_queue_pop(struct tachy_task_queue *queue) {
+    assert(queue != NULL);
+    assert(tachy_task_queue_size(queue) > 0);
 
-    size_t cur_head = self->head % TACHY_TASK_QUEUE_CAPACITY;
-    self->head++;
-    return self->tasks[cur_head];
+    size_t cur_head = queue->head % TACHY_TASK_QUEUE_CAPACITY;
+    queue->head++;
+    return queue->tasks[cur_head];
 }

@@ -6,6 +6,7 @@
 #define TACHY_STRINGIFY(_0) TACHY_STRINGIFY_(_0)
 
 #define TACHY_LABEL __LINE__
+#define TACHY_MAX(a, b) (((a) >= (b)) ? (a) : (b))
 
 #define TACHY_PASTE5(_0, _1, _2, _3, _4) _0 ## _1 ## _2 ## _3 ## _4
 #define TACHY_TRIGGER_PARENTHESIS(...) ,

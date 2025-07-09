@@ -15,6 +15,19 @@ static struct {
     int epoll_fd;
 } runtime = {0};
 
+static void wake_task(struct tachy_task *task) {
+    assert(task != NULL);
+
+    if (tachy_task_runnable(task)) {
+        return;
+    }
+
+    tachy_task_make_runnable(task);
+    if (task != runtime.blocked_task) {
+        tachy_task_queue_push(&runtime.task_queue, task);
+    }
+}
+
 bool tachy_rt_init(void) {
     runtime.epoll_fd = epoll_create1(0);
     if (runtime.epoll_fd == -1) {
@@ -40,10 +53,7 @@ void tachy_rt_block_on_(void *future, tachy_poll_fn poll_fn,
         if (tachy_task_runnable(runtime.blocked_task)) {
             runtime.cur_task = runtime.blocked_task;
             struct tachy_task_poll_result res = tachy_task_poll(runtime.cur_task, output);
-            while (res.poll_state == TACHY_TASK_POLL_AGAIN) {
-                res = tachy_task_poll(runtime.cur_task, output);
-            }
-            if (res.poll_state == TACHY_TASK_POLL_COMPLETE) {
+            if (res.state == TACHY_POLL_READY) {
                 assert(res.consumer == NULL);
                 runtime.blocked_task = NULL;
                 runtime.cur_task = NULL;
@@ -56,17 +66,14 @@ void tachy_rt_block_on_(void *future, tachy_poll_fn poll_fn,
             runtime.cur_task = tachy_task_queue_pop(&runtime.task_queue);
             void *output = tachy_task_output(runtime.cur_task);
             struct tachy_task_poll_result res = tachy_task_poll(runtime.cur_task, output);
-            while (res.poll_state == TACHY_TASK_POLL_AGAIN) {
-                res = tachy_task_poll(runtime.cur_task, output);
-            }
-            if (res.poll_state == TACHY_TASK_POLL_COMPLETE && res.consumer != NULL) {
-                tachy_rt_wake_task(res.consumer);
+            if (res.state == TACHY_POLL_READY && res.consumer != NULL) {
+                wake_task(res.consumer);
             }
         }
         runtime.cur_task = NULL;
 
         queue_size = tachy_task_queue_size(&runtime.task_queue);
-        while (queue_size < 1) {
+        while (queue_size < 1 && !tachy_task_runnable(runtime.blocked_task)) {
             uint64_t now = tachy_clock_now();
             uint64_t deadline = tachy_time_next_expiration(&runtime.time_driver);
             if (now < deadline) {
@@ -79,9 +86,9 @@ void tachy_rt_block_on_(void *future, tachy_poll_fn poll_fn,
 
             now = tachy_clock_now();
             tachy_time_process_at(&runtime.time_driver, now);
-            struct tachy_task *task = tachy_time_next_pending_task(&runtime.time_driver);
-            while (task != NULL) {
-                tachy_rt_wake_task(task);
+            for (struct tachy_task *task = tachy_time_next_pending_task(&runtime.time_driver);
+                 task != NULL; task = tachy_time_next_pending_task(&runtime.time_driver)) {
+                wake_task(task);
             }
         }
     }
@@ -97,11 +104,11 @@ struct tachy_join_handle tachy_rt_spawn_(void *future, tachy_poll_fn poll_fn,
 
     struct tachy_task *task = tachy_task_new(future, poll_fn, future_size_bytes, output_size_bytes);
     if (task == NULL) {
-        return tachy_join_handle(NULL);
+        return tachy_join_handle(NULL, TACHY_OUT_OF_MEMORY_ERROR);
     }
 
     tachy_task_queue_push(&runtime.task_queue, task);
-    return tachy_join_handle(task);
+    return tachy_join_handle(task, TACHY_NO_ERROR);
 }
 
 struct tachy_time_driver *tachy_rt_time_driver(void) {
@@ -111,17 +118,4 @@ struct tachy_time_driver *tachy_rt_time_driver(void) {
 struct tachy_task *tachy_rt_cur_task(void) {
     assert(runtime.cur_task != NULL);
     return runtime.cur_task;
-}
-
-void tachy_rt_wake_task(struct tachy_task *task) {
-    assert(task != NULL);
-
-    if (tachy_task_runnable(task)) {
-        return;
-    }
-
-    tachy_task_make_runnable(task);
-    if (task != runtime.blocked_task) {
-        tachy_task_queue_push(&runtime.task_queue, task);
-    }
 }

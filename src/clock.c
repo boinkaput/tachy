@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <time.h>
 
 #include "../include/clock.h"

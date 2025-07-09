@@ -30,12 +30,12 @@ void tachy_time_entry_free(struct tachy_time_entry *entry);
 
 bool tachy_time_entry_fired(struct tachy_time_entry *entry);
 
-void tachy_time_insert_timeout(struct tachy_time_driver *self, struct tachy_time_entry *entry);
+void tachy_time_insert_timeout(struct tachy_time_driver *driver, struct tachy_time_entry *entry);
 
-void tachy_time_remove_timeout(struct tachy_time_driver *self, struct tachy_time_entry *entry);
+void tachy_time_remove_timeout(struct tachy_time_driver *driver, struct tachy_time_entry *entry);
 
-uint64_t tachy_time_next_expiration(struct tachy_time_driver *self);
+uint64_t tachy_time_next_expiration(struct tachy_time_driver *driver);
 
-void tachy_time_process_at(struct tachy_time_driver *self, uint64_t now_ms);
+void tachy_time_process_at(struct tachy_time_driver *driver, uint64_t now_ms);
 
-struct tachy_task *tachy_time_next_pending_task(struct tachy_time_driver *self);
+struct tachy_task *tachy_time_next_pending_task(struct tachy_time_driver *driver);

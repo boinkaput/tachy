@@ -17,7 +17,7 @@ enum tachy_poll func_poll(FuncFrame *self, int *output) {
 
     self->d = 22;
     printf("Hello world: a = %d\n", self->a);
-    tachy_yield;
+    // tachy_yield;
 
     printf("Bye world: d = %d\n", self->d);
     tachy_return(21);
@@ -42,7 +42,7 @@ enum tachy_poll func1_poll(FuncFrame1 *self, int *output) {
 
     self->c = 4;
     printf("Hello world: a = %d, b = %d\n", self->a, self->b);
-    tachy_yield;
+    // tachy_yield;
 
     int i;
     self->f = func(13);
@@ -65,7 +65,7 @@ enum tachy_poll func2_poll(FuncFrame2 *self, void *output) {
     tachy_begin(self);
 
     printf("yielding from future\n");
-    tachy_yield;
+    // tachy_yield;
     printf("returning from future\n");
     tachy_return();
 
@@ -82,9 +82,9 @@ enum tachy_poll func3_poll(FuncFrame3 *self, int *output) {
     tachy_begin(self);
 
     printf("yielding from future 3 - 1\n");
-    tachy_yield;
+    // tachy_yield;
     printf("yielding from future 3 - 2\n");
-    tachy_yield;
+    // tachy_yield;
     printf("returning from future 3 - 3\n");
     tachy_return(3);
 
@@ -127,9 +127,8 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
     tachy_await(func2_poll(&self->fut2, &i));
     printf("finished polling future\n");
 
-    struct tachy_join_result j = tachy_join_result(&i);
-    tachy_await(tachy_join_handle_poll(&self->j, &j));
-    printf("future 3 joined with status %d\n", j.status);
+    tachy_await(tachy_join_handle_poll(&self->j, &i));
+    printf("future 3 joined with status %d\n", self->j.error);
     printf("future 3 joined with output %d\n", i);
 
     tachy_return(0);
@@ -141,6 +140,7 @@ int main(int argc, char *argv[]) {
     int ret;
     MainFrame fut = async_main(argc, argv);
     if (!tachy_rt_init()) {
+        printf("Failed to initialise runtime\n");
         return 1;
     }
     tachy_rt_block_on(&fut, (tachy_poll_fn) &async_main_poll, &ret);

@@ -10,18 +10,14 @@
 #include "async.h"
 #include "helpers.h"
 
-enum tachy_result_status {
+enum tachy_error_kind {
     TACHY_NO_ERROR,
     TACHY_OUT_OF_MEMORY_ERROR
 };
 
 struct tachy_join_handle {
     struct tachy_task *task;
-};
-
-struct tachy_join_result {
-    enum tachy_result_status status;
-    void *output;
+    enum tachy_error_kind error;
 };
 
 struct tachy_sleep {
@@ -30,7 +26,7 @@ struct tachy_sleep {
 };
 
 struct tachy_sleep_result {
-    enum tachy_result_status status;
+    enum tachy_error_kind status;
 };
 
 // Runtime
@@ -51,15 +47,13 @@ struct tachy_time_driver *tachy_rt_time_driver(void);
 
 struct tachy_task *tachy_rt_cur_task(void);
 
-void tachy_rt_wake_task(struct tachy_task *task);
-
 // Join
 
-struct tachy_join_handle tachy_join_handle(struct tachy_task *task);
+struct tachy_join_handle tachy_join_handle(struct tachy_task *task, enum tachy_error_kind error);
 
-struct tachy_join_result tachy_join_result(void *output);
+void tachy_join_handle_detach(struct tachy_join_handle *handle);
 
-enum tachy_poll tachy_join_handle_poll(struct tachy_join_handle *self, struct tachy_join_result *result);
+enum tachy_poll tachy_join_handle_poll(struct tachy_join_handle *handle, void *output);
 
 // Sleep
 
