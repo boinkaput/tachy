@@ -135,14 +135,14 @@ struct tachy_task_poll_result tachy_task_poll(struct tachy_task *task, void *out
 
     void *fut = future(task);
     enum tachy_poll poll_out = task->poll_fn(fut, output);
+    struct tachy_task_poll_result ret = {.state = poll_out, .consumer = task->consumer};
     if (poll_out == TACHY_POLL_PENDING) {
         transition_to_waiting(task);
     } else {
         transition_to_complete(task);
         tachy_task_ref_dec(task);
     }
-
-    return (struct tachy_task_poll_result) {.state = poll_out, .consumer = task->consumer};
+    return ret;
 }
 
 bool tachy_task_try_copy_output(struct tachy_task *task, void *output) {
