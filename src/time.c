@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -8,10 +9,10 @@
 #define TIMEOUT_PENDING (UINT64_MAX - 1)
 #define TIMEOUT_FIRED (UINT64_MAX)
 
-struct tachy_time_entry {
-    struct tachy_time_entry *prev;
-    struct tachy_time_entry *next;
-    struct tachy_task *task;
+struct time_entry {
+    struct time_entry *prev;
+    struct time_entry *next;
+    struct task *task;
     uint64_t deadline;
 };
 
@@ -46,17 +47,17 @@ static uint64_t rotate_r64(uint64_t num, int n) {
 
 static int level_for(uint64_t timeout) {
     size_t masked = timeout | SLOT_MASK;
-    if (masked >= TACHY_TIME_MAX_TIMEOUT_MS) {
-        masked = TACHY_TIME_MAX_TIMEOUT_MS - 1;
+    if (masked >= TIME_MAX_TIMEOUT_MS) {
+        masked = TIME_MAX_TIMEOUT_MS - 1;
     }
 
     size_t leading_zeros = clz64(masked);
     size_t significant = 63 - leading_zeros;
-    return significant / TACHY_TIME_WHEEL_LEVELS;
+    return significant / TIME_WHEEL_LEVELS;
 }
 
 static uint64_t level_resolution(uint64_t slot_res) {
-    return TACHY_TIME_SLOTS_PER_LEVEL * slot_res;
+    return TIME_SLOTS_PER_LEVEL * slot_res;
 }
 
 static int slot_for(int level, uint64_t deadline) {
@@ -67,8 +68,8 @@ static uint64_t slot_resolution(int level) {
     return ((uint64_t) 1) << (6 * level);
 }
 
-static void slot_push_front(struct tachy_time_entry **slot_head, struct tachy_time_entry *entry) {
-    struct tachy_time_entry *cur_head = *slot_head;
+static void slot_push_front(struct time_entry **slot_head, struct time_entry *entry) {
+    struct time_entry *cur_head = *slot_head;
     entry->next = cur_head;
     if (cur_head != NULL) {
         cur_head->prev = entry;
@@ -76,8 +77,8 @@ static void slot_push_front(struct tachy_time_entry **slot_head, struct tachy_ti
     *slot_head = entry;
 }
 
-static struct tachy_time_entry *slot_pop_front(struct tachy_time_entry **slot_head) {
-    struct tachy_time_entry *entry = *slot_head;
+static struct time_entry *slot_pop_front(struct time_entry **slot_head) {
+    struct time_entry *entry = *slot_head;
     if (entry == NULL) {
         return NULL;
     }
@@ -89,7 +90,7 @@ static struct tachy_time_entry *slot_pop_front(struct tachy_time_entry **slot_he
     return entry;
 }
 
-static void slot_remove(struct tachy_time_entry **slot_head, struct tachy_time_entry *entry) {
+static void slot_remove(struct time_entry **slot_head, struct time_entry *entry) {
     assert(slot_head != NULL);
     assert(*slot_head != NULL);
     assert(entry != NULL);
@@ -119,33 +120,33 @@ static int slot_next_occupied(int level, uint64_t now, uint64_t slot_bitmap) {
     return (now_slot + trailing_zeros) & SLOT_MASK;
 }
 
-static void slot_process_expiration(struct tachy_time_driver *driver,
+static void slot_process_expiration(struct time_driver *driver,
                                     int level, int slot, uint64_t now)
 {
-    struct tachy_time_entry **slot_head = &driver->wheel_levels[level].slots[slot];
-    for (struct tachy_time_entry *entry = slot_pop_front(slot_head);
+    struct time_entry **slot_head = &driver->wheel_levels[level].slots[slot];
+    for (struct time_entry *entry = slot_pop_front(slot_head);
          entry != NULL; entry = slot_pop_front(slot_head)) {
         if (now >= entry->deadline) {
             entry->deadline = TIMEOUT_PENDING;
             slot_push_front(&driver->pending_list_head, entry);
         } else {
-            tachy_time_insert_timeout(driver, entry);
+            time_insert_timeout(driver, entry);
         }
     }
     driver->active_slot_bitmap[level] &= ~BIT_SET(slot);
 }
 
-struct tachy_time_entry *tachy_time_entry_new(struct tachy_task *task, uint64_t deadline)
+struct time_entry *time_entry_new(struct task *task, uint64_t deadline)
 {
     assert(task != NULL);
 
-    struct tachy_time_entry *entry = malloc(sizeof(struct tachy_time_entry));
+    struct time_entry *entry = malloc(sizeof(struct time_entry));
     if (entry == NULL) {
         return NULL;
     }
 
-    tachy_task_ref_inc(task);
-    *entry = (struct tachy_time_entry) {
+    task_ref_inc(task);
+    *entry = (struct time_entry) {
         .prev = NULL,
         .next = NULL,
         .task = task,
@@ -154,16 +155,16 @@ struct tachy_time_entry *tachy_time_entry_new(struct tachy_task *task, uint64_t 
     return entry;
 }
 
-void tachy_time_entry_free(struct tachy_time_entry *entry) {
-    tachy_task_ref_dec(entry->task);
+void time_entry_free(struct time_entry *entry) {
+    task_ref_dec(entry->task);
     free(entry);
 }
 
-bool tachy_time_entry_fired(struct tachy_time_entry *entry) {
+bool time_entry_fired(struct time_entry *entry) {
     return entry->deadline == TIMEOUT_FIRED;
 }
 
-void tachy_time_insert_timeout(struct tachy_time_driver *driver, struct tachy_time_entry *entry) {
+void time_insert_timeout(struct time_driver *driver, struct time_entry *entry) {
     if (driver->elapsed >= entry->deadline) {
         entry->deadline = TIMEOUT_FIRED;
         return;
@@ -173,14 +174,14 @@ void tachy_time_insert_timeout(struct tachy_time_driver *driver, struct tachy_ti
     int l = level_for(timeout);
     int s = slot_for(l, entry->deadline);
 
-    struct tachy_time_wheel_level *level = &driver->wheel_levels[l];
+    struct time_wheel_level *level = &driver->wheel_levels[l];
     slot_push_front(&level->slots[s], entry);
     driver->active_slot_bitmap[l] |= BIT_SET(s);
 }
 
-void tachy_time_remove_timeout(struct tachy_time_driver *driver, struct tachy_time_entry *entry) {
-    if (tachy_time_entry_fired(entry)) {
-        tachy_time_entry_free(entry);
+void time_remove_timeout(struct time_driver *driver, struct time_entry *entry) {
+    if (time_entry_fired(entry)) {
+        time_entry_free(entry);
         return;
     }
 
@@ -191,17 +192,17 @@ void tachy_time_remove_timeout(struct tachy_time_driver *driver, struct tachy_ti
         int l = level_for(timeout);
         int s = slot_for(l, entry->deadline);
 
-        struct tachy_time_wheel_level *level = &driver->wheel_levels[l];
+        struct time_wheel_level *level = &driver->wheel_levels[l];
         slot_remove(&level->slots[s], entry);
         if (level->slots[s] == NULL) {
             driver->active_slot_bitmap[l] &= ~BIT_SET(s);
         }
     }
-    tachy_time_entry_free(entry);
+    time_entry_free(entry);
 }
 
-uint64_t tachy_time_next_expiration(struct tachy_time_driver *driver) {
-    for (int level = 0; level < TACHY_TIME_WHEEL_LEVELS; level++) {
+uint64_t time_next_expiration(struct time_driver *driver) {
+    for (int level = 0; level < TIME_WHEEL_LEVELS; level++) {
         int slot = slot_next_occupied(level, driver->elapsed, driver->active_slot_bitmap[level]);
         if (slot != -1) {
             uint64_t slot_res = slot_resolution(level);
@@ -213,8 +214,8 @@ uint64_t tachy_time_next_expiration(struct tachy_time_driver *driver) {
     return 0;
 }
 
-void tachy_time_process_at(struct tachy_time_driver *driver, uint64_t now) {
-    for (int level = 0; level < TACHY_TIME_WHEEL_LEVELS; level++) {
+void time_process_at(struct time_driver *driver, uint64_t now) {
+    for (int level = 0; level < TIME_WHEEL_LEVELS; level++) {
         uint64_t slot_res = slot_resolution(level);
         uint64_t level_res = level_resolution(slot_res);
         uint64_t level_start = driver->elapsed & ~(level_res - 1);
@@ -243,8 +244,8 @@ void tachy_time_process_at(struct tachy_time_driver *driver, uint64_t now) {
     driver->elapsed = now;
 }
 
-struct tachy_task *tachy_time_next_pending_task(struct tachy_time_driver *driver) {
-    struct tachy_time_entry *entry = slot_pop_front(&driver->pending_list_head);
+struct task *time_next_pending_task(struct time_driver *driver) {
+    struct time_entry *entry = slot_pop_front(&driver->pending_list_head);
     if (entry == NULL) {
         return NULL;
     }
