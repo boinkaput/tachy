@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stddef.h>
 #include <sys/epoll.h>
 
@@ -23,8 +24,8 @@ bool tachy_rt_init(void) {
     }
 
     clock_init();
-    runtime.task_queue = task_queue_new();
-    runtime.time_driver = time_driver_new();
+    runtime.task_queue = task_queue();
+    runtime.time_driver = time_driver();
     runtime.cur_task = NULL;
     runtime.blocked_task = NULL;
     return true;
@@ -47,16 +48,13 @@ void tachy__rt_block_on(void *future, tachy_poll_fn poll_fn,
             }
         }
 
-        size_t queue_size = task_queue_size(&runtime.task_queue);
-        for (size_t i = 0; i < queue_size; i++) {
-            runtime.cur_task = task_queue_pop(&runtime.task_queue);
+        for (runtime.cur_task = task_queue_pop(&runtime.task_queue); runtime.cur_task != NULL;
+             runtime.cur_task = task_queue_pop(&runtime.task_queue)) {
             void *output = task_output(runtime.cur_task);
             task_poll(runtime.cur_task, output);
         }
-        runtime.cur_task = NULL;
 
-        queue_size = task_queue_size(&runtime.task_queue);
-        while (queue_size < 1 && !task_runnable(runtime.blocked_task)) {
+        while (task_queue_empty(&runtime.task_queue) && !task_runnable(runtime.blocked_task)) {
             uint64_t now = clock_now();
             uint64_t deadline = time_next_expiration(&runtime.time_driver);
             if (now < deadline) {

@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "../include/task.h"
 #include "../include/time.h"
 
 #define SLOT_MASK ((1 << 6) - 1)
@@ -162,6 +163,10 @@ void time_entry_free(struct time_entry *entry) {
 
 bool time_entry_fired(struct time_entry *entry) {
     return entry->deadline == TIMEOUT_FIRED;
+}
+
+struct time_driver time_driver(void) {
+    return (struct time_driver) {0};
 }
 
 void time_insert_timeout(struct time_driver *driver, struct time_entry *entry) {

@@ -5,70 +5,53 @@
 #include "../include/task.h"
 #include "../include/tachy.h"
 
-enum task_state {
-    TASK_RUNNABLE = 0b1,
-    TASK_RUNNING  = 0b10,
-    TASK_WAITING  = 0b100,
-    TASK_COMPLETE = 0b1000,
-};
-
-struct task {
-    tachy_poll_fn poll_fn;
-    int ref_count;
-    enum task_state state;
-    struct task *consumer;
-    size_t future_size_bytes;
-    size_t output_size_bytes;
-    char future_or_output[];
-};
-
-static bool runnable(struct task *task) {
+static bool is_runnable(struct task *task) {
     return (task->state & TASK_RUNNABLE) != 0;
 }
 
-static bool running(struct task *task) {
+static bool is_running(struct task *task) {
     return (task->state & TASK_RUNNING) != 0;
 }
 
-static bool waiting(struct task *task) {
+static bool is_waiting(struct task *task) {
     return (task->state & TASK_WAITING) != 0;
 }
 
-static bool complete(struct task *task) {
+static bool is_complete(struct task *task) {
     return (task->state & TASK_COMPLETE) != 0;
 }
 
-void transition_to_runnable(struct task *task) {
-    assert(waiting(task));
+static void transition_to_runnable(struct task *task) {
+    assert(is_waiting(task));
     task->state &= ~TASK_WAITING;
     task->state |= TASK_RUNNABLE;
 }
 
 static void transition_to_running(struct task *task) {
-    assert(runnable(task));
+    assert(is_runnable(task));
     task->state &= ~TASK_RUNNABLE;
     task->state |= TASK_RUNNING;
 }
 
 static void transition_to_waiting(struct task *task) {
-    assert(running(task));
+    assert(is_running(task));
     task->state &= ~TASK_RUNNING;
     task->state |= TASK_WAITING;
 }
 
 static void transition_to_complete(struct task *task) {
-    assert(running(task));
+    assert(is_running(task));
     task->state &= ~TASK_RUNNING;
     task->state |= TASK_COMPLETE;
 }
 
 static void *future(struct task *task) {
-    assert(!complete(task));
+    assert(!is_complete(task));
     return task->future_or_output;
 }
 
 struct task *task_new(void *future, tachy_poll_fn poll_fn,
-                              size_t future_size_bytes, size_t output_size_bytes)
+                      size_t future_size_bytes, size_t output_size_bytes)
 {
     assert(future != NULL);
     assert(poll_fn != NULL);
@@ -81,6 +64,7 @@ struct task *task_new(void *future, tachy_poll_fn poll_fn,
     }
 
     *task = (struct task) {
+        .next = NULL,
         .poll_fn = poll_fn,
         .ref_count = 1,
         .state = TASK_RUNNABLE,
@@ -128,7 +112,7 @@ void task_register_consumer(struct task *task, struct task *consumer) {
 
 bool task_runnable(struct task *task) {
     assert(task != NULL);
-    return runnable(task);
+    return is_runnable(task);
 }
 
 void task_make_runnable(struct task *task) {
@@ -163,7 +147,7 @@ bool task_try_copy_output(struct task *task, void *output) {
     assert(task->future_or_output != NULL);
     assert(task->consumer != NULL);
 
-    if (!complete(task)) {
+    if (!is_complete(task)) {
         return false;
     }
 
