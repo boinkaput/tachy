@@ -2,20 +2,10 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include "../include/task.h"
-#include "../include/time.h"
+#include "../include/time_driver.h"
 
 #define SLOT_MASK ((1 << 6) - 1)
 #define BIT_SET(bit_idx) (((uint64_t) 1) << (bit_idx))
-#define TIMEOUT_PENDING (UINT64_MAX - 1)
-#define TIMEOUT_FIRED (UINT64_MAX)
-
-struct time_entry {
-    struct time_entry *prev;
-    struct time_entry *next;
-    struct task *task;
-    uint64_t deadline;
-};
 
 static int clz64(uint64_t num) {
     int count = 0;
@@ -69,47 +59,6 @@ static uint64_t slot_resolution(int level) {
     return ((uint64_t) 1) << (6 * level);
 }
 
-static void slot_push_front(struct time_entry **slot_head, struct time_entry *entry) {
-    struct time_entry *cur_head = *slot_head;
-    entry->next = cur_head;
-    if (cur_head != NULL) {
-        cur_head->prev = entry;
-    }
-    *slot_head = entry;
-}
-
-static struct time_entry *slot_pop_front(struct time_entry **slot_head) {
-    struct time_entry *entry = *slot_head;
-    if (entry == NULL) {
-        return NULL;
-    }
-
-    *slot_head = entry->next;
-    if (entry->next != NULL) {
-        entry->next->prev = NULL;
-    }
-    return entry;
-}
-
-static void slot_remove(struct time_entry **slot_head, struct time_entry *entry) {
-    assert(slot_head != NULL);
-    assert(*slot_head != NULL);
-    assert(entry != NULL);
-
-    if (*slot_head == entry) {
-        *slot_head = NULL;
-        return;
-    }
-
-    if (entry->prev != NULL) {
-        entry->prev->next = entry->next;
-    }
-
-    if (entry->next != NULL) {
-        entry->next->prev = entry->prev;
-    }
-}
-
 static int slot_next_occupied(int level, uint64_t now, uint64_t slot_bitmap) {
     if (slot_bitmap == 0) {
         return -1;
@@ -121,57 +70,9 @@ static int slot_next_occupied(int level, uint64_t now, uint64_t slot_bitmap) {
     return (now_slot + trailing_zeros) & SLOT_MASK;
 }
 
-static void slot_process_expiration(struct time_driver *driver,
-                                    int level, int slot, uint64_t now)
-{
-    struct time_entry **slot_head = &driver->wheel_levels[level].slots[slot];
-    for (struct time_entry *entry = slot_pop_front(slot_head);
-         entry != NULL; entry = slot_pop_front(slot_head)) {
-        if (now >= entry->deadline) {
-            entry->deadline = TIMEOUT_PENDING;
-            slot_push_front(&driver->pending_list_head, entry);
-        } else {
-            time_insert_timeout(driver, entry);
-        }
-    }
-    driver->active_slot_bitmap[level] &= ~BIT_SET(slot);
-}
-
-struct time_entry *time_entry_new(struct task *task, uint64_t deadline)
-{
-    assert(task != NULL);
-
-    struct time_entry *entry = malloc(sizeof(struct time_entry));
-    if (entry == NULL) {
-        return NULL;
-    }
-
-    task_ref_inc(task);
-    *entry = (struct time_entry) {
-        .prev = NULL,
-        .next = NULL,
-        .task = task,
-        .deadline = deadline
-    };
-    return entry;
-}
-
-void time_entry_free(struct time_entry *entry) {
-    task_ref_dec(entry->task);
-    free(entry);
-}
-
-bool time_entry_fired(struct time_entry *entry) {
-    return entry->deadline == TIMEOUT_FIRED;
-}
-
-struct time_driver time_driver(void) {
-    return (struct time_driver) {0};
-}
-
 void time_insert_timeout(struct time_driver *driver, struct time_entry *entry) {
     if (driver->elapsed >= entry->deadline) {
-        entry->deadline = TIMEOUT_FIRED;
+        time_entry_make_fired(entry);
         return;
     }
 
@@ -180,27 +81,24 @@ void time_insert_timeout(struct time_driver *driver, struct time_entry *entry) {
     int s = slot_for(l, entry->deadline);
 
     struct time_wheel_level *level = &driver->wheel_levels[l];
-    slot_push_front(&level->slots[s], entry);
+    time_entry_list_push_front(&level->slots[s], entry);
     driver->active_slot_bitmap[l] |= BIT_SET(s);
 }
 
 void time_remove_timeout(struct time_driver *driver, struct time_entry *entry) {
-    if (time_entry_fired(entry)) {
-        time_entry_free(entry);
-        return;
-    }
-
-    if (entry->deadline == TIMEOUT_PENDING) {
-        slot_remove(&driver->pending_list_head, entry);
-    } else {
-        uint64_t timeout = entry->deadline - driver->elapsed;
-        int l = level_for(timeout);
-        int s = slot_for(l, entry->deadline);
-
-        struct time_wheel_level *level = &driver->wheel_levels[l];
-        slot_remove(&level->slots[s], entry);
-        if (level->slots[s] == NULL) {
-            driver->active_slot_bitmap[l] &= ~BIT_SET(s);
+    if (!time_entry_fired(entry)) {
+        if (time_entry_pending(entry)) {
+            time_entry_list_remove(&driver->pending, entry);
+        } else {
+            uint64_t timeout = entry->deadline - driver->elapsed;
+            int l = level_for(timeout);
+            int s = slot_for(l, entry->deadline);
+    
+            struct time_wheel_level *level = &driver->wheel_levels[l];
+            time_entry_list_remove(&level->slots[s], entry);
+            if (time_entry_list_empty(&level->slots[s])) {
+                driver->active_slot_bitmap[l] &= ~BIT_SET(s);
+            }
         }
     }
     time_entry_free(entry);
@@ -217,6 +115,22 @@ uint64_t time_next_expiration(struct time_driver *driver) {
         }
     }
     return 0;
+}
+
+static void slot_process_expiration(struct time_driver *driver,
+                                    int level, int slot, uint64_t now)
+{
+    struct time_entry_list *entry_list = &driver->wheel_levels[level].slots[slot];
+    for (struct time_entry *entry = time_entry_list_pop_front(entry_list);
+         entry != NULL; entry = time_entry_list_pop_front(entry_list)) {
+        if (now >= entry->deadline) {
+            time_entry_make_pending(entry);
+            time_entry_list_push_front(&driver->pending, entry);
+        } else {
+            time_insert_timeout(driver, entry);
+        }
+    }
+    driver->active_slot_bitmap[level] &= ~BIT_SET(slot);
 }
 
 void time_process_at(struct time_driver *driver, uint64_t now) {
@@ -250,11 +164,11 @@ void time_process_at(struct time_driver *driver, uint64_t now) {
 }
 
 struct task *time_next_pending_task(struct time_driver *driver) {
-    struct time_entry *entry = slot_pop_front(&driver->pending_list_head);
+    struct time_entry *entry = time_entry_list_pop_front(&driver->pending);
     if (entry == NULL) {
         return NULL;
     }
 
-    entry->deadline = TIMEOUT_FIRED;
+    time_entry_make_fired(entry);
     return entry->task;
 }

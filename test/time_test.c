@@ -4,7 +4,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../include/time.h"
+#include "../include/time_driver.h"
 
 #define NUM_TIMERS 1000
 

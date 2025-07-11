@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../include/runtime.h"
 #include "../include/task.h"
-#include "../include/tachy.h"
 
 static bool is_runnable(struct task *task) {
     return (task->state & TASK_RUNNABLE) != 0;
@@ -76,50 +76,6 @@ struct task *task_new(void *future, tachy_poll_fn poll_fn,
     return task;
 }
 
-void task_ref_inc(struct task *task) {
-    assert(task != NULL);
-    assert(task->ref_count > 0);
-    task->ref_count++;
-}
-
-void task_ref_dec(struct task *task) {
-    assert(task != NULL);
-    assert(task->ref_count > 0);
-
-    task->ref_count--;
-    if (task->ref_count < 1) {
-        free(task);
-    }
-}
-
-void *task_output(struct task *task) {
-    assert(task != NULL);
-    return (task->output_size_bytes > 0) ? task->future_or_output : NULL;
-}
-
-void task_register_consumer(struct task *task, struct task *consumer) {
-    assert(task != NULL);
-
-    if (task->consumer != NULL) {
-        task_ref_dec(task->consumer);
-    }
-
-    if (consumer != NULL) {
-        task_ref_inc(consumer);
-    }
-    task->consumer = consumer;
-}
-
-bool task_runnable(struct task *task) {
-    assert(task != NULL);
-    return is_runnable(task);
-}
-
-void task_make_runnable(struct task *task) {
-    assert(task != NULL);
-    transition_to_runnable(task);
-}
-
 enum tachy_poll task_poll(struct task *task, void *output) {
     assert(task != NULL);
     assert(task->poll_fn != NULL);
@@ -142,6 +98,19 @@ enum tachy_poll task_poll(struct task *task, void *output) {
     return poll_out;
 }
 
+void task_register_consumer(struct task *task, struct task *consumer) {
+    assert(task != NULL);
+
+    if (task->consumer != NULL) {
+        task_ref_dec(task->consumer);
+    }
+
+    if (consumer != NULL) {
+        task_ref_inc(consumer);
+    }
+    task->consumer = consumer;
+}
+
 bool task_try_copy_output(struct task *task, void *output) {
     assert(task != NULL);
     assert(task->future_or_output != NULL);
@@ -154,4 +123,35 @@ bool task_try_copy_output(struct task *task, void *output) {
     void *out = task_output(task);
     memcpy(output, out, task->output_size_bytes);
     return true;
+}
+
+void task_ref_inc(struct task *task) {
+    assert(task != NULL);
+    assert(task->ref_count > 0);
+    task->ref_count++;
+}
+
+void task_ref_dec(struct task *task) {
+    assert(task != NULL);
+    assert(task->ref_count > 0);
+
+    task->ref_count--;
+    if (task->ref_count < 1) {
+        free(task);
+    }
+}
+
+bool task_runnable(struct task *task) {
+    assert(task != NULL);
+    return is_runnable(task);
+}
+
+void task_make_runnable(struct task *task) {
+    assert(task != NULL);
+    transition_to_runnable(task);
+}
+
+void *task_output(struct task *task) {
+    assert(task != NULL);
+    return (task->output_size_bytes > 0) ? task->future_or_output : NULL;
 }

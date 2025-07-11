@@ -3,10 +3,6 @@
 #include "../include/task.h"
 #include "../include/task_queue.h"
 
-struct task_queue task_queue(void) {
-    return (struct task_queue) {0};
-}
-
 bool task_queue_empty(struct task_queue *queue) {
     assert(queue != NULL);
     return queue->head == NULL;

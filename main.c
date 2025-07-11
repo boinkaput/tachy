@@ -115,7 +115,7 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
 
     printf("spawning future 3\n");
     FuncFrame3 fut3 = func3();
-    self->j = tachy_rt_spawn(&fut3, (tachy_poll_fn) &func3_poll, sizeof(int));
+    self->j = tachy_spawn(&fut3, (tachy_poll_fn) &func3_poll, sizeof(int));
 
     int i;
     self->fut1 = func1(28, 841);
@@ -127,7 +127,7 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
     tachy_await(func2_poll(&self->fut2, &i));
     printf("finished polling future\n");
 
-    tachy_await(tachy_join_handle_poll(&self->j, &i));
+    tachy_await(tachy_join_poll(&self->j, &i));
     printf("future 3 joined with status %d\n", self->j.error);
     printf("future 3 joined with output %d\n", i);
 
@@ -139,11 +139,11 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
 int main(int argc, char *argv[]) {
     int ret;
     MainFrame fut = async_main(argc, argv);
-    if (!tachy_rt_init()) {
+    if (!tachy_init()) {
         printf("Failed to initialise runtime\n");
         return 1;
     }
-    tachy_rt_block_on(&fut, (tachy_poll_fn) &async_main_poll, &ret);
+    tachy_block_on(&fut, (tachy_poll_fn) &async_main_poll, &ret);
     printf("Exited with return value: %d\n", ret);
 
     return ret;

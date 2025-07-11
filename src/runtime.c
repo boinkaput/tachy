@@ -3,11 +3,12 @@
 #include <sys/epoll.h>
 
 #include "../include/clock.h"
+#include "../include/join.h"
 #include "../include/runtime.h"
 #include "../include/tachy.h"
 #include "../include/task.h"
 #include "../include/task_queue.h"
-#include "../include/time.h"
+#include "../include/time_driver.h"
 
 static struct {
     struct task_queue task_queue;
@@ -17,21 +18,17 @@ static struct {
     int epoll_fd;
 } runtime = {0};
 
-bool tachy_rt_init(void) {
+bool tachy_init(void) {
     runtime.epoll_fd = epoll_create1(0);
     if (runtime.epoll_fd == -1) {
         return false;
     }
 
     clock_init();
-    runtime.task_queue = task_queue();
-    runtime.time_driver = time_driver();
-    runtime.cur_task = NULL;
-    runtime.blocked_task = NULL;
     return true;
 }
 
-void tachy__rt_block_on(void *future, tachy_poll_fn poll_fn,
+void tachy__block_on(void *future, tachy_poll_fn poll_fn,
                       size_t future_size_bytes, void *output)
 {
     assert(future != NULL);
@@ -48,7 +45,8 @@ void tachy__rt_block_on(void *future, tachy_poll_fn poll_fn,
             }
         }
 
-        for (runtime.cur_task = task_queue_pop(&runtime.task_queue); runtime.cur_task != NULL;
+        for (runtime.cur_task = task_queue_pop(&runtime.task_queue);
+             runtime.cur_task != NULL;
              runtime.cur_task = task_queue_pop(&runtime.task_queue)) {
             void *output = task_output(runtime.cur_task);
             task_poll(runtime.cur_task, output);
@@ -75,7 +73,7 @@ void tachy__rt_block_on(void *future, tachy_poll_fn poll_fn,
     }
 }
 
-struct tachy_join_handle tachy__rt_spawn(void *future, tachy_poll_fn poll_fn,
+struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn,
                                      size_t future_size_bytes,
                                      size_t output_size_bytes)
 {
@@ -85,11 +83,20 @@ struct tachy_join_handle tachy__rt_spawn(void *future, tachy_poll_fn poll_fn,
 
     struct task *task = task_new(future, poll_fn, future_size_bytes, output_size_bytes);
     if (task == NULL) {
-        return tachy_join_handle(NULL, TACHY_OUT_OF_MEMORY_ERROR);
+        return tachy_join(NULL, TACHY_OUT_OF_MEMORY_ERROR);
     }
 
     task_queue_push(&runtime.task_queue, task);
-    return tachy_join_handle(task, TACHY_NO_ERROR);
+    return tachy_join(task, TACHY_NO_ERROR);
+}
+
+struct time_driver *rt_time_driver(void) {
+    return &runtime.time_driver;
+}
+
+struct task *rt_cur_task(void) {
+    assert(runtime.cur_task != NULL);
+    return runtime.cur_task;
 }
 
 void rt_wake_task(struct task *task) {
@@ -103,13 +110,4 @@ void rt_wake_task(struct task *task) {
     if (task != runtime.blocked_task) {
         task_queue_push(&runtime.task_queue, task);
     }
-}
-
-struct time_driver *rt_time_driver(void) {
-    return &runtime.time_driver;
-}
-
-struct task *rt_cur_task(void) {
-    assert(runtime.cur_task != NULL);
-    return runtime.cur_task;
 }

@@ -28,7 +28,7 @@ struct tachy_join_handle {
     enum tachy_error_kind error;
 };
 
-struct tachy_sleep {
+struct tachy_sleep_handle {
     struct time_entry *entry;
     bool registered;
 };
@@ -77,24 +77,22 @@ struct tachy_sleep_result {
 
 // Runtime
 
-#define tachy_rt_block_on(future, poll_fn, output)                              \
-    tachy__rt_block_on(future, poll_fn, sizeof(*(future)), output)
+#define tachy_block_on(future, poll_fn, output)                                 \
+    tachy__block_on(future, poll_fn, sizeof(*(future)), output)
 
-#define tachy_rt_spawn(future, poll_fn, output_size_bytes)                      \
-    tachy__rt_spawn(future, poll_fn, sizeof(*(future)), output_size_bytes)
+#define tachy_spawn(future, poll_fn, output_size_bytes)                         \
+    tachy__spawn(future, poll_fn, sizeof(*(future)), output_size_bytes)
 
-bool tachy_rt_init(void);
-void tachy__rt_block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, void *output);
-struct tachy_join_handle tachy__rt_spawn(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
-void rt_wake_task(struct task *task);
+bool tachy_init(void);
+void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, void *output);
+struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
 
 // Join
 
-struct tachy_join_handle tachy_join_handle(struct task *task, enum tachy_error_kind error);
-void tachy_join_handle_detach(struct tachy_join_handle *handle);
-enum tachy_poll tachy_join_handle_poll(struct tachy_join_handle *handle, void *output);
+void tachy_join_detach(struct tachy_join_handle *handle);
+enum tachy_poll tachy_join_poll(struct tachy_join_handle *handle, void *output);
 
 // Sleep
 
-struct tachy_sleep tachy_sleep(uint64_t timeout_ms);
-enum tachy_poll sleep_poll(struct tachy_sleep *handle, struct tachy_sleep_result *result);
+struct tachy_sleep_handle tachy_sleep(uint64_t timeout_ms);
+enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, struct tachy_sleep_result *result);
