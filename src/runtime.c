@@ -7,11 +7,11 @@
 #include "../include/runtime.h"
 #include "../include/tachy.h"
 #include "../include/task.h"
-#include "../include/task_queue.h"
 #include "../include/time_driver.h"
 
 static struct {
-    struct task_queue task_queue;
+    struct task_list tasks;
+    struct task_list deferred_tasks;
     struct time_driver time_driver;
     struct task *cur_task;
     struct task *blocked_task;
@@ -45,14 +45,19 @@ void tachy__block_on(void *future, tachy_poll_fn poll_fn,
             }
         }
 
-        for (runtime.cur_task = task_queue_pop(&runtime.task_queue);
+        for (runtime.cur_task = task_list_pop_front(&runtime.tasks);
              runtime.cur_task != NULL;
-             runtime.cur_task = task_queue_pop(&runtime.task_queue)) {
+             runtime.cur_task = task_list_pop_front(&runtime.tasks)) {
             void *output = task_output(runtime.cur_task);
             task_poll(runtime.cur_task, output);
         }
 
-        while (task_queue_empty(&runtime.task_queue) && !task_runnable(runtime.blocked_task)) {
+        for (struct task *task = task_list_pop_front(&runtime.deferred_tasks);
+             task != NULL; task = task_list_pop_front(&runtime.deferred_tasks)) {
+            rt_wake_task(task);
+        }
+
+        while (task_list_empty(&runtime.tasks) && !task_runnable(runtime.blocked_task)) {
             uint64_t now = clock_now();
             uint64_t deadline = time_next_expiration(&runtime.time_driver);
             if (now < deadline) {
@@ -86,7 +91,7 @@ struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn,
         return tachy_join(NULL, TACHY_OUT_OF_MEMORY_ERROR);
     }
 
-    task_queue_push(&runtime.task_queue, task);
+    task_list_push_front(&runtime.tasks, task);
     return tachy_join(task, TACHY_NO_ERROR);
 }
 
@@ -108,6 +113,10 @@ void rt_wake_task(struct task *task) {
 
     task_make_runnable(task);
     if (task != runtime.blocked_task) {
-        task_queue_push(&runtime.task_queue, task);
+        task_list_push_front(&runtime.tasks, task);
     }
+}
+
+void rt_defer_task(struct task *task) {
+    task_list_push_front(&runtime.deferred_tasks, task);
 }

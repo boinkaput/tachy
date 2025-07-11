@@ -155,3 +155,27 @@ void *task_output(struct task *task) {
     assert(task != NULL);
     return (task->output_size_bytes > 0) ? task->future_or_output : NULL;
 }
+
+bool task_list_empty(struct task_list *list) {
+    assert(list != NULL);
+    return list->head == NULL;
+}
+
+void task_list_push_front(struct task_list *list, struct task *task) {
+    assert(list != NULL);
+    assert(task != NULL);
+
+    task->next = list->head;
+    list->head = task;
+}
+
+struct task *task_list_pop_front(struct task_list *list) {
+    assert(list != NULL);
+
+    struct task *task = list->head;
+    if (task != NULL) {
+        list->head = task->next;
+        task->next = NULL;
+    }
+    return task;
+}

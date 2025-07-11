@@ -4,8 +4,9 @@
     #error Tachy requires c99 or later
 #endif
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "macros.h"
 
@@ -21,6 +22,10 @@ typedef enum tachy_poll (*tachy_poll_fn)(void *future, void *output);
 enum tachy_error_kind {
     TACHY_NO_ERROR,
     TACHY_OUT_OF_MEMORY_ERROR
+};
+
+struct tachy_yield_handle {
+    bool yielded;
 };
 
 struct tachy_join_handle {
@@ -52,13 +57,6 @@ struct tachy_sleep_result {
     }                                                                           \
     return TACHY_POLL_READY
 
-#define tachy_yield                                                             \
-    do {                                                                        \
-        *_tachy_state = TACHY_LABEL;                                            \
-        return TACHY_POLL_PENDING;                                              \
-        case TACHY_LABEL:;                                                      \
-    } while(0)
-
 
 #define tachy_return(...)                                                       \
     do {                                                                        \
@@ -75,7 +73,7 @@ struct tachy_sleep_result {
         if ((poll) == TACHY_POLL_PENDING) return TACHY_POLL_PENDING;            \
     } while(0)
 
-// Runtime
+// Task
 
 #define tachy_block_on(future, poll_fn, output)                                 \
     tachy__block_on(future, poll_fn, sizeof(*(future)), output)
@@ -86,6 +84,11 @@ struct tachy_sleep_result {
 bool tachy_init(void);
 void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, void *output);
 struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
+
+// Yield
+
+struct tachy_yield_handle tachy_yield(void);
+enum tachy_poll tachy_yield_poll(struct tachy_yield_handle *handle, TACHY_UNUSED void *output);
 
 // Join
 

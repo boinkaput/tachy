@@ -5,6 +5,7 @@
 typedef struct {
     int a;
     int d;
+    struct tachy_yield_handle yield_handle;
     tachy_state state;
 } FuncFrame;
 
@@ -17,7 +18,8 @@ enum tachy_poll func_poll(FuncFrame *self, int *output) {
 
     self->d = 22;
     printf("Hello world: a = %d\n", self->a);
-    // tachy_yield;
+    self->yield_handle = tachy_yield();
+    tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
 
     printf("Bye world: d = %d\n", self->d);
     tachy_return(21);
@@ -29,6 +31,7 @@ typedef struct {
     int a;
     int b;
     int c;
+    struct tachy_yield_handle yield_handle;
     FuncFrame f;
     tachy_state state;
 } FuncFrame1;
@@ -42,7 +45,8 @@ enum tachy_poll func1_poll(FuncFrame1 *self, int *output) {
 
     self->c = 4;
     printf("Hello world: a = %d, b = %d\n", self->a, self->b);
-    // tachy_yield;
+    self->yield_handle = tachy_yield();
+    tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
 
     int i;
     self->f = func(13);
@@ -54,37 +58,46 @@ enum tachy_poll func1_poll(FuncFrame1 *self, int *output) {
     tachy_end;
 }
 
-typedef tachy_state FuncFrame2;
+typedef struct {
+    struct tachy_yield_handle yield_handle;
+    tachy_state state;
+} FuncFrame2;
 
 static inline FuncFrame2 func2(void) {
-    return 0;
+    return (FuncFrame2) {.state = 0};
 }
 
 enum tachy_poll func2_poll(FuncFrame2 *self, void *output) {
     (void) output;
-    tachy_begin(self);
+    tachy_begin(&self->state);
 
     printf("yielding from future\n");
-    // tachy_yield;
+    self->yield_handle = tachy_yield();
+    tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
     printf("returning from future\n");
     tachy_return();
 
     tachy_end;
 }
 
-typedef tachy_state FuncFrame3;
+typedef struct {
+    struct tachy_yield_handle yield_handle;
+    tachy_state state;
+} FuncFrame3;
 
 static inline FuncFrame3 func3(void) {
-    return 0;
+    return (FuncFrame3) {.state = 0};
 }
 
 enum tachy_poll func3_poll(FuncFrame3 *self, int *output) {
-    tachy_begin(self);
+    tachy_begin(&self->state);
 
     printf("yielding from future 3 - 1\n");
-    // tachy_yield;
+    self->yield_handle = tachy_yield();
+    tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
     printf("yielding from future 3 - 2\n");
-    // tachy_yield;
+    self->yield_handle = tachy_yield();
+    tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
     printf("returning from future 3 - 3\n");
     tachy_return(3);
 
