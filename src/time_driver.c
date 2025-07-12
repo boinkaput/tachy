@@ -172,3 +172,113 @@ struct task *time_next_pending_task(struct time_driver *driver) {
     time_entry_make_fired(entry);
     return entry->task;
 }
+
+
+#ifdef TACHY_TEST
+#include <stdio.h>
+
+#include "../include/task.h"
+
+static void test_clz64(void) {
+    assert(clz64(0) == 64);
+    assert(clz64(1ULL << 63) == 0);
+    assert(clz64(1ULL << 0) == 63);
+    assert(clz64((1ULL << 62) | (1ULL << 10)) == 1);
+    assert(clz64((1ULL << 63)) == 0);
+}
+
+static void test_ctz64(void) {
+    assert(ctz64(0) == 64);
+    assert(ctz64(1ULL << 0) == 0);
+    assert(ctz64(1ULL << 10) == 10);
+    assert(ctz64((1ULL << 5) | (1ULL << 10)) == 5);
+}
+
+static void test_rotate_r64(void) {
+    assert(rotate_r64(0b1ULL, 1) == (1ULL << 63));
+    assert(rotate_r64(0b1ULL << 5, 5) == 1ULL);
+    assert(rotate_r64(0xFFFFFFFFFFFFFFFFULL, 10) == 0xFFFFFFFFFFFFFFFFULL);
+}
+
+static void test_level_for(void) {
+    assert(level_for(1) == 0);
+    assert(level_for(63) == 0);
+    assert(level_for(64) == 1);
+    assert(level_for(4095) == 1);
+    assert(level_for(4096) == 2);
+    assert(level_for(262143) == 2);
+}
+
+static void test_level_resolution(void) {
+    assert(level_resolution(1) == 64);
+    assert(level_resolution(64) == 4096);
+    assert(level_resolution(4096) == 262144);
+}
+
+static void test_slot_for(void) {
+    assert(slot_for(0, 0) == 0);
+    assert(slot_for(0, 63) == 63);
+    assert(slot_for(1, 64) == 1);
+    assert(slot_for(1, 4095) == 63);
+}
+
+static void test_slot_resolution(void) {
+    assert(slot_resolution(0) == 1);
+    assert(slot_resolution(1) == 64);
+    assert(slot_resolution(2) == 4096);
+    assert(slot_resolution(3) == 262144);
+}
+
+static void test_slot_next_occupied(void) {
+    uint64_t bitmap = (1ULL << 5) | (1ULL << 10) | (1ULL << 20);
+
+    int next = slot_next_occupied(0, 0, bitmap);
+    assert(next == 5);
+
+    next = slot_next_occupied(0, 6, bitmap);
+    assert(next == 10);
+
+    next = slot_next_occupied(0, 21, bitmap);
+    assert(next == 5);
+}
+
+static void test_slot_process_expiration(void) {
+    struct time_driver driver = {0};
+    struct task task = {};
+    struct time_entry e1 = {.task = &task, .deadline = 1000};
+    struct time_entry e2 = {.task = &task, .deadline = 1500};
+
+    int level = 0;
+    int slot = 5;
+
+    driver.wheel_levels[level].slots[slot] = (struct time_entry_list) {};
+    driver.active_slot_bitmap[level] = 0;
+    time_entry_list_push_front(&driver.wheel_levels[level].slots[slot], &e1);
+    time_entry_list_push_front(&driver.wheel_levels[level].slots[slot], &e2);
+    driver.active_slot_bitmap[level] |= BIT_SET(slot);
+
+    slot_process_expiration(&driver, level, slot, 1200);
+    assert(driver.pending.head == &e1 || driver.pending.head == &e2);
+}
+
+void time_driver_tests(void) {
+    test_clz64();
+    printf("✅ Passed test_clz64()\n");
+    test_ctz64();
+    printf("✅ Passed test_ctz64()\n");
+    test_rotate_r64();
+    printf("✅ Passed test_rotate_r64()\n");
+    test_level_for();
+    printf("✅ Passed test_level_for()\n");
+    test_level_resolution();
+    printf("✅ Passed test_level_resolution()\n");
+    test_slot_for();
+    printf("✅ Passed test_slot_for()\n");
+    test_slot_resolution();
+    printf("✅ Passed test_slot_resolution()\n");
+    test_slot_next_occupied();
+    printf("✅ Passed test_slot_next_occupied()\n");
+    test_slot_process_expiration();
+    printf("✅ Passed test_slot_process_expiration()\n");
+}
+#endif

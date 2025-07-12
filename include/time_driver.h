@@ -24,3 +24,7 @@ void time_remove_timeout(struct time_driver *driver, struct time_entry *entry);
 uint64_t time_next_expiration(struct time_driver *driver);
 void time_process_at(struct time_driver *driver, uint64_t now_ms);
 struct task *time_next_pending_task(struct time_driver *driver);
+
+#ifdef TACHY_TEST
+void time_driver_tests(void);
+#endif
