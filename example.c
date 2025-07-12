@@ -83,26 +83,27 @@ enum tachy_poll func2_poll(FuncFrame2 *self, void *output) {
 }
 
 typedef struct {
+    bool joining;
     struct tachy_yield_handle yield_handle;
     tachy_state state;
 } FuncFrame3;
 
-static inline FuncFrame3 func3(void) {
-    return (FuncFrame3) {.state = 0};
+static inline FuncFrame3 func3(bool joining) {
+    return (FuncFrame3) {.joining = joining, .state = 0};
 }
 
 enum tachy_poll func3_poll(FuncFrame3 *self, int *output) {
     tachy_begin(&self->state);
 
-    printf("yielding from future 3 - 1\n");
+    printf("(joining: %s) yielding from future 3 - 1\n", (self->joining) ? "true" : "false");
     self->yield_handle = tachy_yield();
     tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
 
-    printf("yielding from future 3 - 2\n");
+    printf("(joining: %s) yielding from future 3 - 2\n", (self->joining) ? "true" : "false");
     self->yield_handle = tachy_yield();
     tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
 
-    printf("returning from future 3 - 3\n");
+    printf("(joining: %s) returning from future 3 - 3\n", (self->joining) ? "true" : "false");
     tachy_return(3);
 
     tachy_end;
@@ -131,8 +132,13 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
     printf("%s]\n", self->argv[self->argc - 1]);
 
     printf("spawning future 3\n");
-    FuncFrame3 fut3 = func3();
+    FuncFrame3 fut3 = func3(true);
     self->j = tachy_spawn(&fut3, (tachy_poll_fn) &func3_poll, sizeof(int));
+
+    printf("spawning future 3 - no join\n");
+    fut3 = func3(false);
+    int err = tachy_spawn_no_join(&fut3, (tachy_poll_fn) &func3_poll, sizeof(int));
+    printf("spawned future 3 no join with status %d\n", err);
 
     int i;
     self->fut1 = func1(28, 841);
@@ -145,7 +151,7 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
     printf("finished polling future\n");
 
     tachy_await(tachy_join_poll(&self->j, &i));
-    printf("future 3 joined with status %d\n", self->j.error);
+    printf("future 3 joined with status %d\n", self->j.state);
     printf("future 3 joined with output %d\n", i);
 
     tachy_return(0);

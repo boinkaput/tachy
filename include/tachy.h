@@ -87,7 +87,7 @@ struct tachy_sleep_handle {
 #define tachy_spawn(future, poll_fn, output_size_bytes)                         \
     tachy__spawn(future, poll_fn, sizeof(*(future)), output_size_bytes)
 
-#define tachy_spawn_no_join(future, poll_fn, output_size_bytes)                         \
+#define tachy_spawn_no_join(future, poll_fn, output_size_bytes)                 \
     tachy__spawn_no_join(future, poll_fn, sizeof(*(future)), output_size_bytes)
 
 bool tachy_init(void);
