@@ -28,9 +28,7 @@ bool tachy_init(void) {
     return true;
 }
 
-void tachy__block_on(void *future, tachy_poll_fn poll_fn,
-                      size_t future_size_bytes, void *output)
-{
+void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, void *output) {
     assert(future != NULL);
     assert(poll_fn != NULL);
 
@@ -73,10 +71,7 @@ void tachy__block_on(void *future, tachy_poll_fn poll_fn,
     }
 }
 
-struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn,
-                                     size_t future_size_bytes,
-                                     size_t output_size_bytes)
-{
+struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes) {
     assert(future != NULL);
     assert(poll_fn != NULL);
     assert(future_size_bytes > 0);
@@ -87,7 +82,21 @@ struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn,
     }
 
     task_list_push_front(&runtime.tasks, task);
-    return tachy_join(task, TACHY_NO_ERROR);
+    return tachy_join(task, TACHY_FUTURE_CREATED);
+}
+
+int tachy__spawn_no_join(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes) {
+    assert(future != NULL);
+    assert(poll_fn != NULL);
+    assert(future_size_bytes > 0);
+
+    struct task *task = task_new(future, poll_fn, future_size_bytes, output_size_bytes);
+    if (task == NULL) {
+        return TACHY_OUT_OF_MEMORY_ERROR;
+    }
+
+    task_list_push_front(&runtime.tasks, task);
+    return TACHY_FUTURE_CREATED;
 }
 
 struct time_driver *rt_time_driver(void) {

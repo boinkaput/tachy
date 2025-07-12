@@ -19,27 +19,33 @@ enum tachy_poll {
 
 typedef enum tachy_poll (*tachy_poll_fn)(void *future, void *output);
 
-enum tachy_error_kind {
-    TACHY_NO_ERROR,
-    TACHY_OUT_OF_MEMORY_ERROR
+enum tachy_future_state {
+    TACHY_FUTURE_CREATED,
+    TACHY_YIELDED,
+    TACHY_JOIN_REGISTERED,
+    TACHY_JOIN_COMPLETED,
+    TACHY_SLEEP_REGISTERED,
+    TACHY_SLEEP_COMPLETED,
+    TACHY_PLACEHOLDER_STATE,
+};
+
+enum tachy_error {
+    TACHY_NO_ERROR = 0,
+    TACHY_OUT_OF_MEMORY_ERROR = TACHY_PLACEHOLDER_STATE,
 };
 
 struct tachy_yield_handle {
-    bool yielded;
+    tachy_state state;
 };
 
 struct tachy_join_handle {
     struct task *task;
-    enum tachy_error_kind error;
+    tachy_state state;
 };
 
 struct tachy_sleep_handle {
     struct time_entry *entry;
-    bool registered;
-};
-
-struct tachy_sleep_result {
-    enum tachy_error_kind status;
+    tachy_state state;
 };
 
 // Coroutines
@@ -81,9 +87,13 @@ struct tachy_sleep_result {
 #define tachy_spawn(future, poll_fn, output_size_bytes)                         \
     tachy__spawn(future, poll_fn, sizeof(*(future)), output_size_bytes)
 
+#define tachy_spawn_no_join(future, poll_fn, output_size_bytes)                         \
+    tachy__spawn_no_join(future, poll_fn, sizeof(*(future)), output_size_bytes)
+
 bool tachy_init(void);
 void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, void *output);
 struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
+int tachy__spawn_no_join(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
 
 // Yield
 
@@ -98,4 +108,4 @@ enum tachy_poll tachy_join_poll(struct tachy_join_handle *handle, void *output);
 // Sleep
 
 struct tachy_sleep_handle tachy_sleep(uint64_t timeout_ms);
-enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, struct tachy_sleep_result *result);
+enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, TACHY_UNUSED void *output);
