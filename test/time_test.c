@@ -40,10 +40,10 @@ void test_insert_expired(void) {
     free(entry);
 }
 
-void test_process_at_and_pending(void) {
+void test_process_at(void) {
     struct time_driver driver = {0};
-    struct task task1 = {.ref_count = 1};
-    struct task task2 = {.ref_count = 1};
+    struct task task1 = {.ref_count = 1, .state = TASK_WAITING};
+    struct task task2 = {.ref_count = 1, .state = TASK_WAITING};
 
     struct time_entry *entry1 = time_entry_new(&task1, 100);
     struct time_entry *entry2 = time_entry_new(&task2, 200);
@@ -52,14 +52,12 @@ void test_process_at_and_pending(void) {
     time_insert_timeout(&driver, entry2);
 
     time_process_at(&driver, 150);
-    struct task *pending = time_next_pending_task(&driver);
-    assert(pending == &task1);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_WAITING);
 
     time_process_at(&driver, 250);
-    pending = time_next_pending_task(&driver);
-    assert(pending == &task2);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_RUNNABLE);
 
     free(entry1);
     free(entry2);
@@ -67,7 +65,7 @@ void test_process_at_and_pending(void) {
 
 void test_level_cascade(void) {
     struct time_driver driver = {0};
-    struct task task = {.ref_count = 1};
+    struct task task = {.ref_count = 1, .state = TASK_WAITING};
     struct time_entry *entry = time_entry_new(&task, 5000);
     assert(entry);
 
@@ -76,23 +74,20 @@ void test_level_cascade(void) {
     uint64_t next_exp = time_next_expiration(&driver);
     assert(next_exp == 4096);
     time_process_at(&driver, 4096);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task.state == TASK_WAITING);
 
     next_exp = time_next_expiration(&driver);
     assert(next_exp == 4992);
     time_process_at(&driver, 5000);
-
-    struct task *next_task = time_next_pending_task(&driver);
-    assert(next_task == &task);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task.state == TASK_RUNNABLE);
 
     free(entry);
 }
 
 void test_multiple_same_slot(void) {
     struct time_driver driver = {0};
-    struct task task1 = {.ref_count = 1};
-    struct task task2 = {.ref_count = 1};
+    struct task task1 = {.ref_count = 1, .state = TASK_WAITING};
+    struct task task2 = {.ref_count = 1, .state = TASK_WAITING};
 
     struct time_entry *e1 = time_entry_new(&task1, 4100);
     struct time_entry *e2 = time_entry_new(&task2, 4500);
@@ -102,17 +97,18 @@ void test_multiple_same_slot(void) {
 
     assert(time_next_expiration(&driver) == 4096);
     time_process_at(&driver, 4096);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task1.state == TASK_WAITING);
+    assert(task2.state == TASK_WAITING);
 
     assert(time_next_expiration(&driver) == 4100);
     time_process_at(&driver, 4100);
-    struct task *next_task = time_next_pending_task(&driver);
-    assert(next_task == &task1);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_WAITING);
 
     assert(time_next_expiration(&driver) == 4480);
     time_process_at(&driver, 4500);
-    next_task = time_next_pending_task(&driver);
-    assert(next_task == &task2);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_RUNNABLE);
 
     free(e1);
     free(e2);
@@ -120,9 +116,9 @@ void test_multiple_same_slot(void) {
 
 void test_multiple_levels_next_expiration(void) {
     struct time_driver driver = {0};
-    struct task task0 = {.ref_count = 1};
-    struct task task1 = {.ref_count = 1};
-    struct task task2 = {.ref_count = 1};
+    struct task task0 = {.ref_count = 1, .state = TASK_WAITING};
+    struct task task1 = {.ref_count = 1, .state = TASK_WAITING};
+    struct task task2 = {.ref_count = 1, .state = TASK_WAITING};
 
     struct time_entry *e0 = time_entry_new(&task0, 100);
     struct time_entry *e1 = time_entry_new(&task1, 500);
@@ -134,19 +130,27 @@ void test_multiple_levels_next_expiration(void) {
 
     assert(time_next_expiration(&driver) == 64);
     time_process_at(&driver, 100);
-    assert(time_next_pending_task(&driver) == &task0);
+    assert(task0.state == TASK_RUNNABLE);
+    assert(task1.state == TASK_WAITING);
+    assert(task2.state == TASK_WAITING);
 
     assert(time_next_expiration(&driver) == 448);
     time_process_at(&driver, 500);
-    assert(time_next_pending_task(&driver) == &task1);
+    assert(task0.state == TASK_RUNNABLE);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_WAITING);
 
     assert(time_next_expiration(&driver) == 4096);
     time_process_at(&driver, 4096);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task0.state == TASK_RUNNABLE);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_WAITING);
 
     assert(time_next_expiration(&driver) == 4992);
     time_process_at(&driver, 5000);
-    assert(time_next_pending_task(&driver) == &task2);
+    assert(task0.state == TASK_RUNNABLE);
+    assert(task1.state == TASK_RUNNABLE);
+    assert(task2.state == TASK_RUNNABLE);
 
     free(e0);
     free(e1);
@@ -155,7 +159,7 @@ void test_multiple_levels_next_expiration(void) {
 
 void test_max_timeout_boundary(void) {
     struct time_driver driver = {0};
-    struct task task = {.ref_count = 1};
+    struct task task = {.ref_count = 1, .state = TASK_WAITING};
     struct time_entry *entry = time_entry_new(&task, TIME_MAX_TIMEOUT_MS);
     assert(entry);
     time_insert_timeout(&driver, entry);
@@ -164,11 +168,10 @@ void test_max_timeout_boundary(void) {
     assert(next_exp - 1 == TIME_MAX_TIMEOUT_MS - (((uint64_t) 1) << (6 * (TIME_WHEEL_LEVELS - 1))));
 
     time_process_at(&driver, next_exp);
-    assert(time_next_pending_task(&driver) == NULL);
+    assert(task.state == TASK_WAITING);
 
     time_process_at(&driver, TIME_MAX_TIMEOUT_MS);
-    struct task *next_task = time_next_pending_task(&driver);
-    assert(next_task == &task);
+    assert(task.state == TASK_RUNNABLE);
 
     free(entry);
 }
@@ -188,6 +191,7 @@ int test_huge_number_of_timers(void) {
         uint64_t max_dead = TIME_MAX_TIMEOUT_MS / 10;
         for (int i = 0; i < NUM_TIMERS; i++) {
             indices[i] = i;
+            tasks[i].state = TASK_WAITING;
             tasks[i].ref_count = i + 1;
             expected_ref_count[i] = i + 1;
             deadlines[i] = (uint64_t)(rand() % max_dead) + 1;
@@ -218,14 +222,13 @@ int test_huge_number_of_timers(void) {
             assert(next_exp >= fired_deadline);
             time_process_at(&driver, deadlines[indices[i]]);
 
-            struct task *task = time_next_pending_task(&driver);
-            assert(task != NULL);
+            struct task task = tasks[indices[i]];
+            assert(task.state == TASK_RUNNABLE);
 
-            assert(task->ref_count == expected_ref_count[indices[i]]);
+            assert(task.ref_count == expected_ref_count[indices[i]]);
             fired_deadline = next_exp;
         }
 
-        assert(time_next_pending_task(&driver) == NULL);
         for (int i = 0; i < NUM_TIMERS; i++) {
             struct task *task = entries[i]->task;
             time_entry_free(entries[i]);
@@ -241,8 +244,8 @@ int main(void) {
     printf("✅ test_insert_timeout_and_expiration()\n");
     test_insert_expired();
     printf("✅ test_insert_expired()\n");
-    test_process_at_and_pending();
-    printf("✅ test_process_at_and_pending()\n");
+    test_process_at();
+    printf("✅ test_process_at()\n");
     test_level_cascade();
     printf("✅ test_level_cascade()\n");
     test_multiple_same_slot();

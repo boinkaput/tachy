@@ -17,8 +17,6 @@ struct time_entry_list {
 struct time_entry *time_entry_new(struct task *task, uint64_t deadline);
 void time_entry_free(struct time_entry *entry);
 bool time_entry_fired(struct time_entry *entry);
-bool time_entry_pending(struct time_entry *entry);
-void time_entry_make_pending(struct time_entry *entry);
 void time_entry_make_fired(struct time_entry *entry);
 
 bool time_entry_list_empty(struct time_entry_list *list);

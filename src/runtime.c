@@ -69,10 +69,6 @@ void tachy__block_on(void *future, tachy_poll_fn poll_fn,
 
             now = clock_now();
             time_process_at(&runtime.time_driver, now);
-            for (struct task *task = time_next_pending_task(&runtime.time_driver);
-                 task != NULL; task = time_next_pending_task(&runtime.time_driver)) {
-                rt_wake_task(task);
-            }
         }
     }
 }

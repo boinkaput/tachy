@@ -16,14 +16,12 @@ struct time_driver {
     uint64_t elapsed;
     struct time_wheel_level wheel_levels[TIME_WHEEL_LEVELS];
     uint64_t active_slot_bitmap[TIME_WHEEL_LEVELS];
-    struct time_entry_list pending;
 };
 
 void time_insert_timeout(struct time_driver *driver, struct time_entry *entry);
 void time_remove_timeout(struct time_driver *driver, struct time_entry *entry);
 uint64_t time_next_expiration(struct time_driver *driver);
 void time_process_at(struct time_driver *driver, uint64_t now_ms);
-struct task *time_next_pending_task(struct time_driver *driver);
 
 #ifdef TACHY_TEST
 void time_driver_tests(void);

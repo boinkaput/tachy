@@ -5,7 +5,6 @@
 #include "../include/time_entry.h"
 
 #define TIMEOUT_FIRED (UINT64_MAX)
-#define TIMEOUT_PENDING (UINT64_MAX - 1)
 
 struct time_entry *time_entry_new(struct task *task, uint64_t deadline) {
     assert(task != NULL);
@@ -30,18 +29,8 @@ void time_entry_free(struct time_entry *entry) {
     free(entry);
 }
 
-bool time_entry_pending(struct time_entry *entry) {
-    return entry->deadline == TIMEOUT_PENDING;
-}
-
 bool time_entry_fired(struct time_entry *entry) {
     return entry->deadline == TIMEOUT_FIRED;
-}
-
-void time_entry_make_pending(struct time_entry *entry) {
-    assert(!time_entry_pending(entry));
-    assert(!time_entry_fired(entry));
-    entry->deadline = TIMEOUT_PENDING;
 }
 
 void time_entry_make_fired(struct time_entry *entry) {
