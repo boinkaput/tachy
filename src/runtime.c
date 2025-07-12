@@ -49,11 +49,6 @@ void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_byt
             task_poll(runtime.cur_task, output);
         }
 
-        for (struct task *task = task_list_pop_front(&runtime.deferred_tasks);
-             task != NULL; task = task_list_pop_front(&runtime.deferred_tasks)) {
-            rt_wake_task(task);
-        }
-
         while (task_list_empty(&runtime.tasks) && !task_runnable(runtime.blocked_task)) {
             uint64_t now = clock_now();
             uint64_t deadline = time_next_expiration(&runtime.time_driver);
@@ -67,6 +62,11 @@ void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_byt
 
             now = clock_now();
             time_process_at(&runtime.time_driver, now);
+
+            for (struct task *task = task_list_pop_front(&runtime.deferred_tasks);
+                 task != NULL; task = task_list_pop_front(&runtime.deferred_tasks)) {
+                rt_wake_task(task);
+            }
         }
     }
 }

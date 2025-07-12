@@ -13,14 +13,9 @@ struct tachy_join_handle tachy_join(struct task *task, int state) {
     return (struct tachy_join_handle) {.task = task, .state = state};
 }
 
-void tachy_join_detach(struct tachy_join_handle *handle) {
-    task_register_consumer(handle->task, NULL);
-    task_ref_dec(handle->task);
-    handle->task = NULL;
-}
-
 enum tachy_poll tachy_join_poll(struct tachy_join_handle *handle, void *output) {
     assert(handle != NULL);
+    assert(handle->state != TACHY_JOIN_DETACHED);
 
     if (handle->state == TACHY_FUTURE_CREATED) {
         struct task *task = rt_cur_task();
@@ -38,4 +33,11 @@ enum tachy_poll tachy_join_poll(struct tachy_join_handle *handle, void *output) 
         task_ref_dec(handle->task);
     }
     return TACHY_POLL_READY;
+}
+
+void tachy_join_detach(struct tachy_join_handle *handle) {
+    task_register_consumer(handle->task, NULL);
+    task_ref_dec(handle->task);
+    handle->task = NULL;
+    handle->state = TACHY_JOIN_DETACHED;
 }

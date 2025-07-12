@@ -21,11 +21,17 @@ typedef enum tachy_poll (*tachy_poll_fn)(void *future, void *output);
 
 enum tachy_future_state {
     TACHY_FUTURE_CREATED,
+
     TACHY_YIELDED,
+
     TACHY_JOIN_REGISTERED,
     TACHY_JOIN_COMPLETED,
+    TACHY_JOIN_DETACHED,
+
     TACHY_SLEEP_REGISTERED,
     TACHY_SLEEP_COMPLETED,
+    TACHY_SLEEP_CANCELED,
+
     TACHY_PLACEHOLDER_STATE,
 };
 
@@ -102,10 +108,11 @@ enum tachy_poll tachy_yield_poll(struct tachy_yield_handle *handle, TACHY_UNUSED
 
 // Join
 
-void tachy_join_detach(struct tachy_join_handle *handle);
 enum tachy_poll tachy_join_poll(struct tachy_join_handle *handle, void *output);
+void tachy_join_detach(struct tachy_join_handle *handle);
 
 // Sleep
 
 struct tachy_sleep_handle tachy_sleep(uint64_t timeout_ms);
 enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, TACHY_UNUSED void *output);
+void tachy_cancel_sleep(struct tachy_sleep_handle *handle);

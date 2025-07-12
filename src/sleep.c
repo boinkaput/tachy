@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include <assert.h>
 
 #include "../include/clock.h"
 #include "../include/runtime.h"
@@ -16,6 +16,9 @@ struct tachy_sleep_handle tachy_sleep(uint64_t timeout_ms) {
 }
 
 enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, TACHY_UNUSED void *output) {
+    assert(handle != NULL);
+    assert(handle->state != TACHY_SLEEP_CANCELED);
+
     if (handle->state == TACHY_FUTURE_CREATED) {
         handle->state = TACHY_SLEEP_REGISTERED;
         struct time_driver *driver = rt_time_driver();
@@ -31,4 +34,11 @@ enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, TACHY_UNUSED
         time_entry_free(handle->entry);
     }
     return TACHY_POLL_READY;
+}
+
+void tachy_cancel_sleep(struct tachy_sleep_handle *handle) {
+    struct time_driver *driver = rt_time_driver();
+    time_remove_timeout(driver, handle->entry);
+    handle->entry = NULL;
+    handle->state = TACHY_SLEEP_CANCELED;
 }
