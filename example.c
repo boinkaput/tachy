@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <time.h>
 
 #include "include/tachy.h"
 
@@ -109,6 +110,15 @@ enum tachy_poll func3_poll(FuncFrame3 *self, int *output) {
     tachy_end;
 }
 
+#define S_TO_MS(sec) ((sec) * 1000)
+#define NS_TO_MS(nsec) ((nsec) / 1000000)
+
+static uint64_t now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return S_TO_MS(ts.tv_sec) + NS_TO_MS(ts.tv_nsec);
+}
+
 typedef struct {
     int argc;
     char **argv;
@@ -116,6 +126,8 @@ typedef struct {
     FuncFrame1 fut1;
     FuncFrame2 fut2;
     struct tachy_join_handle j;
+    uint64_t begin;
+    struct tachy_sleep_handle sleep_handle;
 } MainFrame;
 
 static inline MainFrame async_main(int argc, char *argv[]) {
@@ -153,6 +165,13 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
     tachy_await(tachy_join_poll(&self->j, &i));
     printf("future 3 joined with status %d\n", self->j.state);
     printf("future 3 joined with output %d\n", i);
+
+    self->sleep_handle = tachy_sleep(1000);
+    self->begin = now();
+    printf("Sleeping now for 1000ms\n");
+    tachy_await(tachy_sleep_poll(&self->sleep_handle, NULL));
+    uint64_t end = now();
+    printf("Time diff = %lums\n", end - self->begin);
 
     tachy_return(0);
 
