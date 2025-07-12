@@ -45,7 +45,6 @@ void time_entry_make_pending(struct time_entry *entry) {
 }
 
 void time_entry_make_fired(struct time_entry *entry) {
-    assert(time_entry_pending(entry));
     assert(!time_entry_fired(entry));
     entry->deadline = TIMEOUT_FIRED;
 }

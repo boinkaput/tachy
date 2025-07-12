@@ -18,6 +18,7 @@ enum tachy_poll func_poll(FuncFrame *self, int *output) {
 
     self->d = 22;
     printf("Hello world: a = %d\n", self->a);
+
     self->yield_handle = tachy_yield();
     tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
 
@@ -74,6 +75,7 @@ enum tachy_poll func2_poll(FuncFrame2 *self, void *output) {
     printf("yielding from future\n");
     self->yield_handle = tachy_yield();
     tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
+
     printf("returning from future\n");
     tachy_return();
 
@@ -95,9 +97,11 @@ enum tachy_poll func3_poll(FuncFrame3 *self, int *output) {
     printf("yielding from future 3 - 1\n");
     self->yield_handle = tachy_yield();
     tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
+
     printf("yielding from future 3 - 2\n");
     self->yield_handle = tachy_yield();
     tachy_await(tachy_yield_poll(&self->yield_handle, NULL));
+
     printf("returning from future 3 - 3\n");
     tachy_return(3);
 

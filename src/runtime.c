@@ -46,8 +46,7 @@ void tachy__block_on(void *future, tachy_poll_fn poll_fn,
         }
 
         for (runtime.cur_task = task_list_pop_front(&runtime.tasks);
-             runtime.cur_task != NULL;
-             runtime.cur_task = task_list_pop_front(&runtime.tasks)) {
+             runtime.cur_task != NULL; runtime.cur_task = task_list_pop_front(&runtime.tasks)) {
             void *output = task_output(runtime.cur_task);
             task_poll(runtime.cur_task, output);
         }
