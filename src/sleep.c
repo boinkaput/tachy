@@ -5,8 +5,8 @@
 #include "../include/tachy.h"
 #include "../include/time_driver.h"
 
-struct tachy_sleep_handle tachy_sleep(uint64_t timeout_ms) {
-    uint64_t deadline = clock_timeout_ticks(timeout_ms);
+struct tachy_sleep_handle tachy_sleep(struct tachy_sleep_duration duration) {
+    uint64_t deadline = clock_timeout_ticks(S_TO_MS(duration.secs) + duration.msecs);
     struct task *task = rt_cur_task();
     struct time_entry *entry = time_entry_new(task, deadline);
     return (struct tachy_sleep_handle) {

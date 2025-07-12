@@ -3,9 +3,6 @@
 
 #include "../include/clock.h"
 
-#define S_TO_MS(sec) ((sec) * 1000)
-#define NS_TO_MS(nsec) ((nsec) / 1000000)
-
 static struct {
     uint64_t start_time;
 } linux_clock = {0};

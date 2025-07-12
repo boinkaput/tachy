@@ -166,9 +166,9 @@ enum tachy_poll async_main_poll(MainFrame *self, int *output) {
     printf("future 3 joined with status %d\n", self->j.state);
     printf("future 3 joined with output %d\n", i);
 
-    self->sleep_handle = tachy_sleep(1000);
+    self->sleep_handle = tachy_sleep((struct tachy_sleep_duration) {.secs = 1});
     self->begin = now();
-    printf("Sleeping now for 1000ms\n");
+    printf("Sleeping now for 1sec\n");
     tachy_await(tachy_sleep_poll(&self->sleep_handle, NULL));
     uint64_t end = now();
     printf("Time diff = %lums\n", end - self->begin);

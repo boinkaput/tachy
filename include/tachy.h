@@ -54,6 +54,11 @@ struct tachy_sleep_handle {
     tachy_state state;
 };
 
+struct tachy_sleep_duration {
+    uint64_t secs;
+    uint64_t msecs;
+};
+
 // Coroutines
 
 #define TACHY_RETURN_CASE_0(out) *output = out;
@@ -113,6 +118,6 @@ void tachy_join_detach(struct tachy_join_handle *handle);
 
 // Sleep
 
-struct tachy_sleep_handle tachy_sleep(uint64_t timeout_ms);
+struct tachy_sleep_handle tachy_sleep(struct tachy_sleep_duration duration);
 enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, TACHY_UNUSED void *output);
 void tachy_cancel_sleep(struct tachy_sleep_handle *handle);
