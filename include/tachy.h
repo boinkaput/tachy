@@ -40,6 +40,11 @@ enum tachy_error {
     TACHY_OUT_OF_MEMORY_ERROR = TACHY_PLACEHOLDER_STATE,
 };
 
+struct tachy_duration {
+    uint64_t secs;
+    uint64_t msecs;
+};
+
 struct tachy_yield_handle {
     tachy_state state;
 };
@@ -54,10 +59,6 @@ struct tachy_sleep_handle {
     tachy_state state;
 };
 
-struct tachy_sleep_duration {
-    uint64_t secs;
-    uint64_t msecs;
-};
 
 // Coroutines
 
@@ -90,6 +91,11 @@ struct tachy_sleep_duration {
         if ((poll) == TACHY_POLL_PENDING) return TACHY_POLL_PENDING;            \
     } while(0)
 
+
+// Runtime
+
+bool tachy_init(void);
+
 // Task
 
 #define tachy_block_on(future, poll_fn, output)                                 \
@@ -101,7 +107,6 @@ struct tachy_sleep_duration {
 #define tachy_spawn_no_join(future, poll_fn, output_size_bytes)                 \
     tachy__spawn_no_join(future, poll_fn, sizeof(*(future)), output_size_bytes)
 
-bool tachy_init(void);
 void tachy__block_on(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, void *output);
 struct tachy_join_handle tachy__spawn(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
 int tachy__spawn_no_join(void *future, tachy_poll_fn poll_fn, size_t future_size_bytes, size_t output_size_bytes);
@@ -118,6 +123,7 @@ void tachy_join_detach(struct tachy_join_handle *handle);
 
 // Sleep
 
-struct tachy_sleep_handle tachy_sleep(struct tachy_sleep_duration duration);
+struct tachy_sleep_handle tachy_sleep(struct tachy_duration duration);
 enum tachy_poll tachy_sleep_poll(struct tachy_sleep_handle *handle, TACHY_UNUSED void *output);
-void tachy_cancel_sleep(struct tachy_sleep_handle *handle);
+void tachy_sleep_cancel(struct tachy_sleep_handle *handle);
+void tachy_sleep_reset(struct tachy_sleep_handle *handle, struct tachy_duration new_duration);

@@ -36,6 +36,10 @@ enum tachy_poll tachy_join_poll(struct tachy_join_handle *handle, void *output) 
 }
 
 void tachy_join_detach(struct tachy_join_handle *handle) {
+    assert(handle != NULL);
+    assert(handle->state != TACHY_JOIN_DETACHED);
+    assert(handle->state != TACHY_JOIN_COMPLETED);
+
     task_register_consumer(handle->task, NULL);
     task_ref_dec(handle->task);
     handle->task = NULL;

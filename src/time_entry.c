@@ -25,11 +25,13 @@ struct time_entry *time_entry_new(struct task *task, uint64_t deadline) {
 }
 
 void time_entry_free(struct time_entry *entry) {
+    assert(entry != NULL);
     task_ref_dec(entry->task);
     free(entry);
 }
 
 bool time_entry_fired(struct time_entry *entry) {
+    assert(entry != NULL);
     return entry->deadline == TIMEOUT_FIRED;
 }
 
@@ -39,10 +41,14 @@ void time_entry_make_fired(struct time_entry *entry) {
 }
 
 bool time_entry_list_empty(struct time_entry_list *list) {
+    assert(list != NULL);
     return list->head == NULL;
 }
 
 void time_entry_list_push_front(struct time_entry_list *list, struct time_entry *entry) {
+    assert(list != NULL);
+    assert(entry != NULL);
+
     struct time_entry *cur_head = list->head;
     entry->next = cur_head;
     if (cur_head != NULL) {
@@ -52,6 +58,8 @@ void time_entry_list_push_front(struct time_entry_list *list, struct time_entry 
 }
 
 struct time_entry *time_entry_list_pop_front(struct time_entry_list *list) {
+    assert(list != NULL);
+
     struct time_entry *entry = list->head;
     if (entry == NULL) {
         return NULL;

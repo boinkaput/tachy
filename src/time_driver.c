@@ -72,6 +72,9 @@ static int slot_next_occupied(int level, uint64_t now, uint64_t slot_bitmap) {
 }
 
 void time_insert_timeout(struct time_driver *driver, struct time_entry *entry) {
+    assert(driver != NULL);
+    assert(entry != NULL);
+
     if (driver->elapsed >= entry->deadline) {
         time_entry_make_fired(entry);
         return;
@@ -87,6 +90,9 @@ void time_insert_timeout(struct time_driver *driver, struct time_entry *entry) {
 }
 
 void time_remove_timeout(struct time_driver *driver, struct time_entry *entry) {
+    assert(driver != NULL);
+    assert(entry != NULL);
+
     if (!time_entry_fired(entry)) {
         uint64_t timeout = entry->deadline - driver->elapsed;
         int l = level_for(timeout);
@@ -98,7 +104,6 @@ void time_remove_timeout(struct time_driver *driver, struct time_entry *entry) {
             driver->active_slot_bitmap[l] &= ~BIT_SET(s);
         }
     }
-    time_entry_free(entry);
 }
 
 uint64_t time_next_expiration(struct time_driver *driver) {
